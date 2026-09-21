@@ -1,0 +1,580 @@
+:root{
+    --bg: #f8f9fc;
+    --panel: #ffffff;
+    --panel-2: #edf0f7;
+    --line: rgba(30, 40, 70, 0.16);
+    --metal-1: #a3abbd;
+    --metal-2: #6c7488;
+    --metal-highlight: #dfe4f0;
+    --rivet: #2a2f3c;
+    --accent: #35507f;
+    --danger: #b3261e;
+    --text: #1f2533;
+    --text-dim: #4d566b;
+    --unlocked: #1c7a48;
+    --locked: #b3261e;
+    --door-anim-duration: 1s;
+    --seal-anim-duration: 0.9s;
+    --stage-h: 18rem;
+    --chain-t: 2.4rem;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-reduced-motion: reduce){
+    :root{
+        --door-anim-duration: 0.06s;
+        --seal-anim-duration: 0.06s;
+    }
+}
+
+*{ box-sizing: border-box; }
+
+html, body{
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Sans", "Yu Gothic", "Segoe UI", system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body{
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+}
+
+#app{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    max-width: 30rem;
+    width: 100%;
+    margin: 0 auto;
+    padding: calc(1rem + var(--safe-top)) 1rem 1rem;
+    box-sizing: border-box;
+}
+
+.screen{
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 1rem;
+}
+.screen[hidden]{ display: none; }
+
+button{
+    font: inherit;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--metal-1);
+    border-radius: 0.6rem;
+    padding: 0.6rem 0.9rem;
+    cursor: pointer;
+}
+button:active{ transform: translateY(1px); }
+
+.primary-btn{
+    background: linear-gradient(180deg, #5f79a8, #44598a);
+    border-color: #44598a;
+    color: #fff;
+    font-weight: 600;
+}
+.danger-btn{
+    background: #fdeaea;
+    border-color: var(--danger);
+    color: #8a1c1c;
+}
+
+/* ===== 画面上部の固定高さヘッダー（全ホーム画面で共通。アイコン位置を揃えるため） ===== */
+.screen-header{
+    height: 8rem;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.state-label{
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    justify-content: center;
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    margin: 0;
+}
+.state-dot{
+    width: 0.7em;
+    height: 0.7em;
+    border-radius: 50%;
+    display: inline-block;
+}
+.state-label-unlocked .state-dot{ background: var(--unlocked); box-shadow: 0 0 6px var(--unlocked); }
+.state-label-locked .state-dot{ background: var(--locked); box-shadow: 0 0 6px var(--locked); }
+
+.elapsed-time{
+    margin: 0.5rem 0 0;
+    font-size: 1.05rem;
+    color: var(--text);
+    min-height: 1.6em;
+}
+.elapsed-time:empty{ visibility: hidden; }
+
+/* ===== カウントダウン表示 ===== */
+.countdown-label{
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 0.95rem;
+    letter-spacing: 0.08em;
+}
+.countdown-number{
+    margin: 0.1em 0 0;
+    font-size: 4.5rem;
+    line-height: 1.1;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    text-shadow: none;
+}
+
+/* ===== ステージ（ゲーム機アイコンの表示領域。全ホーム画面で同じ大きさ・位置） ===== */
+.door-stage{
+    position: relative;
+    flex: none;
+    height: var(--stage-h);
+    border-radius: 1rem;
+    overflow: hidden;
+    background: radial-gradient(ellipse at center, #8792b3 0%, #5f6a89 85%);
+    border: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.console-icon{
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16rem;
+    height: 16rem;
+}
+/* 封印が解かれている間は、アイコンの背景を明るく光らせて目立たせる */
+.console-icon::before{
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fffef0 0%, #fff0b3 38%, rgba(255, 222, 120, 0.55) 58%, rgba(255, 214, 102, 0) 74%);
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity var(--seal-anim-duration) ease, transform var(--seal-anim-duration) ease;
+}
+.console-icon[data-sealed="false"]::before{
+    opacity: 1;
+    transform: scale(1.6);
+}
+.console-glyph{
+    position: relative;
+    font-size: 9rem;
+    line-height: 1;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
+    transition: filter var(--seal-anim-duration) ease;
+}
+.console-icon[data-sealed="true"] .console-glyph{
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45)) grayscale(0.45) brightness(0.8);
+}
+
+/* ===== 鎖（画面の四方から伸びてきて、ゲーム機を縛る） ===== */
+.chains{
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+}
+.chain{
+    position: absolute;
+    height: var(--chain-t);
+    width: 500px;
+    background: url("../image/line_chain_black.png") repeat-x left center / auto 100%;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+    transition: clip-path var(--seal-anim-duration) cubic-bezier(0.4, 0, 0.2, 1);
+}
+.chains.no-anim .chain{ transition: none; }
+
+.chain-left{
+    justify-self: center;
+    top: calc(50% - var(--chain-t) / 2);
+    transform: rotate(45deg) translateY(20px);
+    clip-path: inset(0 100% 0 0);
+    /* clip-path: inset(0 0 0 0); */
+    transition-delay: 0.1s;
+}
+.chain-top{
+    justify-self: center;
+    top: calc(50% - var(--chain-t) / 2);
+    transform: rotate(135deg) translateY(20px);
+    clip-path: inset(0 100% 0 0);
+    /* clip-path: inset(0 0 0 0); */
+    transition-delay: 0.2s;
+}
+.chain-right{
+    justify-self: center;
+    top: calc(50% - var(--chain-t) / 2);
+    transform: rotate(225deg) translateY(20px);
+    clip-path: inset(0 100% 0 0);
+    /* clip-path: inset(0 0 0 0); */
+    transition-delay: 0.3s;
+}
+.chain-bottom{
+    justify-self: center;
+    top: calc(50% - var(--chain-t) / 2);
+    transform: rotate(315deg) translateY(20px);
+    clip-path: inset(0 100% 0 0);
+    /* clip-path: inset(0 0 0 0); */
+    transition-delay: 0.4s;
+}
+
+/* 左右の鎖: 水平方向。それぞれの辺から中央へ向かって伸びる */
+/* .chain-left{
+    left: 0; right: 0;
+    justify-self: center;
+    top: 50%;
+    top: calc(32% - var(--chain-t) / 2);
+    transform: rotate(45deg);
+    clip-path: inset(0 100% 0 0);
+}
+ .chain-right{
+    left: 0; right: 0;
+    top: calc(68% - var(--chain-t) / 2);
+    background-position: right center;
+    clip-path: inset(0 0 0 100%);
+    transition-delay: 0.2s;
+} */
+/* 上下の鎖: 画像を90度回転して垂直方向にする（ローカルx軸が下向きになる） */
+/* .chain-top{
+    width: var(--stage-h);
+    top: 0;
+    left: calc(66% + var(--chain-t) / 2);
+    transform-origin: 0 0;
+    transform: rotate(90deg);
+    clip-path: inset(0 100% 0 0);
+    transition-delay: 0.1s;
+}
+.chain-bottom{
+    width: var(--stage-h);
+    top: 0;
+    left: calc(34% + var(--chain-t) / 2);
+    transform-origin: 0 0;
+    transform: rotate(90deg);
+    background-position: right center;
+    clip-path: inset(0 0 0 100%);
+    transition-delay: 0.3s;
+} */
+.chains.is-sealed .chain{ clip-path: inset(0 0 0 0); }
+
+/* ===== 鉄の扉（画面全体の手前に置く） ===== */
+.door-panel{
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 50%;
+    z-index: 40;
+    pointer-events: none;
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.22)),
+        repeating-linear-gradient(90deg, var(--metal-1) 0px, var(--metal-1) 2px, var(--metal-2) 2px, var(--metal-2) 6px);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.35);
+    transition: transform var(--door-anim-duration) cubic-bezier(0.55, 0, 0.2, 1);
+}
+.door-left{ left: 0; transform: translateX(0); border-right: 2px solid var(--rivet); }
+.door-right{ right: 0; transform: translateX(0); border-left: 2px solid var(--rivet); }
+.door-top{ top: 0; width: 400px; transform: translateY(-200px) rotate(90deg); border-right: 2px solid var(--rivet); transition-delay: 0.2s; }
+.door-bottom{ bottom: 0; width: 400px; transform: translateY(200px) rotate(90deg); border-left: 2px solid var(--rivet); transition-delay: 0.2s; }
+.door-panel::before, .door-panel::after{
+    content: "";
+    position: absolute;
+    left: 12%;
+    right: 12%;
+    height: 0.55rem;
+    border-radius: 999px;
+    background: radial-gradient(circle, var(--metal-highlight) 0%, var(--rivet) 70%);
+    box-shadow: 0 0.6rem 0 var(--rivet), 0 1.2rem 0 var(--rivet);
+}
+.door-panel::before{ top: 18%; }
+.door-panel::after{ bottom: 18%; }
+
+.screen-countdown.is-open .door-left{ transform: translateX(-102%); }
+.screen-countdown.is-open .door-right{ transform: translateX(102%); }
+.screen-countdown.is-open .door-top{ transform: translateY(-600px) rotate(90deg); }
+.screen-countdown.is-open .door-bottom{ transform: translateY(600px) rotate(90deg); }
+
+/* 扉の奥にあるカウント表示・アイコン・メッセージは、扉が開くと同時に拡大して現れる */
+.screen-countdown .reveal-target{
+    justify-self: center;
+    align-self: center;
+    transform: scale(0);
+    opacity: 0;
+    transition: transform var(--door-anim-duration) cubic-bezier(0.4, 0.1, 0.5, 1), opacity var(--door-anim-duration) ease;
+}
+.screen-countdown.is-open .reveal-target{
+    transform: scale(1);
+    opacity: 1;
+}
+.screen-countdown.no-anim .door-panel,
+.screen-countdown.no-anim .reveal-target{ transition: none; }
+
+/* ===== メッセージ・ヒント ===== */
+.message-window{
+    text-align: center;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 0.8rem;
+    padding: 0.9rem 1rem;
+    color: var(--text);
+    margin: 0;
+}
+.hint-text{
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+/* ===== 活動選択 ===== */
+.activity-picker{
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 0.9rem;
+    padding: 1rem;
+}
+.activity-picker-title{
+    margin: 0 0 0.7rem;
+    text-align: center;
+    color: var(--text);
+}
+.activity-buttons{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.2rem;
+}
+.activity-buttons button{
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    justify-content: center;
+    padding: 0.1em 0;
+    /* min-height: 3rem; */
+    font-weight: 600;
+}
+.activity-color-dot{
+    width: 0.8em;
+    height: 0.8em;
+    border-radius: 50%;
+    flex: none;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+.activity-done-message{
+    text-align: center;
+    color: var(--unlocked);
+    font-weight: 600;
+    margin: 0;
+}
+
+/* ===== サブ画面共通 ===== */
+.subscreen-header{
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+.subscreen-header h2{
+    margin: 0;
+    font-size: 1.1rem;
+}
+.nav-back{
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    padding: 0.3rem 0.2rem;
+}
+
+/* ===== 履歴画面 ===== */
+.month-switcher{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+}
+.month-switcher span{ min-width: 8em; text-align: center; font-variant-numeric: tabular-nums; }
+.history-list{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    overflow-y: auto;
+}
+.history-item{
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 0.7rem;
+    padding: 0.7rem 0.8rem;
+}
+.history-item-color{
+    width: 0.9em;
+    height: 0.9em;
+    border-radius: 50%;
+    flex: none;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+.history-item-body{ flex: 1; min-width: 0; }
+.history-item-title{ font-weight: 600; }
+.history-item-meta{ color: var(--text-dim); font-size: 0.8rem; }
+.history-item-delete{
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    padding: 0.3rem 0.5rem;
+    font-size: 1.1rem;
+}
+.history-item-delete:hover{ color: var(--danger); }
+.history-actions{ display: flex; justify-content: center; }
+.empty-message{ text-align: center; color: var(--text-dim); }
+
+/* ===== 活動内容管理画面 ===== */
+.activity-list{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.activity-list-item{
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 0.7rem;
+    padding: 0.7rem 0.8rem;
+    width: 100%;
+    text-align: left;
+}
+.activity-list-item .activity-color-dot{ width: 1em; height: 1em; }
+.activity-list-item-name{ flex: 1; }
+.activity-list-item-type{ color: var(--text-dim); font-size: 0.75rem; }
+
+/* ===== ダイアログ ===== */
+dialog{
+    border: 1px solid var(--metal-1);
+    border-radius: 0.9rem;
+    background: var(--panel);
+    color: var(--text);
+    width: min(24rem, 90vw);
+    padding: 1.2rem;
+}
+dialog::backdrop{ background: rgba(20, 24, 36, 0.4); }
+dialog h3{ margin: 0 0 0.8rem; }
+.field-label{ margin: 0.6rem 0 0.3rem; color: var(--text-dim); font-size: 0.85rem; }
+dialog input[type="text"]{
+    width: 100%;
+    font: inherit;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--metal-1);
+    border-radius: 0.5rem;
+    padding: 0.6rem 0.7rem;
+}
+.color-picker{
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.4rem;
+    margin-top: 0.3rem;
+}
+.color-swatch{
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    padding: 0;
+    cursor: pointer;
+}
+.color-swatch.is-selected{ border-color: var(--text); }
+.dialog-actions{
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 1.1rem;
+}
+
+/* ===== 下部ナビゲーション ===== */
+.bottom-nav{
+    display: flex;
+    border-top: 1px solid var(--line);
+    background: var(--panel);
+    padding: 0.4rem calc(0.4rem + var(--safe-bottom)) calc(0.4rem + var(--safe-bottom));
+}
+.bottom-nav[hidden]{ display: none; }
+.nav-btn{
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    padding: 0.6rem 0.2rem;
+    border-radius: 0.6rem;
+}
+.nav-btn.is-active{ color: var(--text); background: var(--panel-2); }
+
+/* ===== 警告バナー ===== */
+.storage-warning{
+    background: #fdeaea;
+    color: #8a1c1c;
+    text-align: center;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.8rem;
+}
+.storage-warning[hidden]{ display: none; }
+
+/* ===== Googleカレンダー連携 ===== */
+.calendar-settings{
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 0.9rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+.calendar-settings h3{ margin: 0; font-size: 1rem; }
+.calendar-settings p{ margin: 0; font-size: 0.8rem; color: var(--text-dim); }
+.calendar-settings input{
+    width: 100%;
+    font: inherit;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--metal-1);
+    border-radius: 0.5rem;
+    padding: 0.6rem 0.7rem;
+}
+.calendar-status{
+    text-align: center;
+    font-size: 0.9rem;
+    margin: 0;
+    color: var(--text-dim);
+}
+.calendar-status[hidden]{ display: none; }
+.calendar-status.is-ok{ color: var(--unlocked); }
+.calendar-status.is-error{ color: var(--danger); }
+.history-item-retry{ font-size: 0.75rem; padding: 0.3rem 0.5rem; }

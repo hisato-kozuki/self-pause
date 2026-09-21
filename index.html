@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f8f9fc">
+<title>Self Pause</title>
+<link href="css/style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+    <div id="storageWarning" class="storage-warning" hidden></div>
+
+    <main id="app">
+        <!-- SCR-001 / SCR-003: 解禁・終了カウントダウン画面（共通レイアウト） -->
+        <section class="screen screen-countdown" data-screen="countdown" hidden>
+            <div class="reveal-target">
+                <header class="screen-header countdown-display">
+                    <p class="countdown-label" id="countdownLabel">解禁まで</p>
+                    <p class="countdown-number" id="countdownNumber">10</p>
+                </header>
+                <div class="door-stage">
+                    <div class="chains is-sealed" id="countdownChains" aria-hidden="true">
+                        <div class="chain chain-left"></div>
+                        <div class="chain chain-right"></div>
+                        <div class="chain chain-top"></div>
+                        <div class="chain chain-bottom"></div>
+                    </div>
+                    <div class="console-icon" id="countdownConsoleIcon" data-sealed="true">
+                        <span class="console-glyph">🎮</span>
+                    </div>
+                </div>
+                <footer class="message-window" id="countdownMessage">ゲームを始める準備をしましょう</footer>
+            </div>
+            <!-- 鉄の扉は画面全体の手前に置き、開くと奥の要素が見える -->
+            <div class="door-panel door-top" id="doorTop"></div>
+            <div class="door-panel door-bottom" id="doorBottom"></div>
+            <div class="door-panel door-left" id="doorLeft"></div>
+            <div class="door-panel door-right" id="doorRight"></div>
+        </section>
+
+        <!-- SCR-002: 使用可能状態画面 -->
+        <section class="screen screen-unlocked" data-screen="unlocked" hidden>
+            <header class="screen-header">
+                <p class="state-label state-label-unlocked">
+                    <span class="state-dot" aria-hidden="true"></span>使用可能
+                </p>
+            </header>
+            <div class="door-stage">
+                <div class="console-icon" data-sealed="false">
+                    <span class="console-glyph">🎮</span>
+                </div>
+            </div>
+            <footer class="message-window">楽しんでいってらっしゃい</footer>
+            <p class="hint-text">このアプリに戻ると、終了の準備が始まります</p>
+        </section>
+
+        <!-- SCR-004: 使用禁止状態画面（活動選択） -->
+        <section class="screen screen-locked" data-screen="locked" hidden>
+            <header class="screen-header">
+                <p class="state-label state-label-locked">
+                    <span class="state-dot" aria-hidden="true"></span>使用禁止
+                </p>
+                <p class="elapsed-time" id="elapsedTime"></p>
+            </header>
+            <div class="door-stage">
+                <div class="chains is-sealed" aria-hidden="true">
+                    <div class="chain chain-left"></div>
+                    <div class="chain chain-right"></div>
+                    <div class="chain chain-top"></div>
+                    <div class="chain chain-bottom"></div>
+                </div>
+                <div class="console-icon" data-sealed="true">
+                    <span class="console-glyph">🎮</span>
+                </div>
+            </div>
+            <div class="activity-picker" id="activityPicker">
+                <p class="activity-picker-title">記録先</p>
+                <div class="activity-buttons" id="activityButtons"></div>
+            </div>
+            <p class="activity-done-message" id="activityDoneMessage" hidden>記録しました。ありがとうございます。</p>
+            <p class="calendar-status" id="calendarStatus" hidden></p>
+            <footer class="message-window">選択すると記録され、次の解禁が始まります</footer>
+        </section>
+
+        <!-- SCR-005: 活動履歴画面 -->
+        <section class="screen screen-history" data-screen="history" hidden>
+            <header class="subscreen-header">
+                <button type="button" class="nav-back" data-nav="home">← ホーム</button>
+                <h2>活動履歴</h2>
+            </header>
+            <div class="month-switcher">
+                <button type="button" id="prevMonthBtn" aria-label="前の月">◀</button>
+                <span id="currentMonthLabel"></span>
+                <button type="button" id="nextMonthBtn" aria-label="次の月">▶</button>
+            </div>
+            <ul class="history-list" id="historyList"></ul>
+            <p class="empty-message" id="historyEmptyMessage" hidden>この月の記録はまだありません</p>
+            <div class="history-actions">
+                <button type="button" id="clearAllHistoryBtn" class="danger-btn">この月の履歴をすべて削除</button>
+            </div>
+        </section>
+
+        <!-- SCR-006: 活動内容管理画面 -->
+        <section class="screen screen-activities" data-screen="activities" hidden>
+            <header class="subscreen-header">
+                <button type="button" class="nav-back" data-nav="home">← ホーム</button>
+                <h2>活動内容管理</h2>
+            </header>
+            <ul class="activity-list" id="activityList"></ul>
+            <button type="button" id="addActivityBtn" class="primary-btn">＋ 活動を追加</button>
+
+            <form class="calendar-settings" id="calendarSettingsForm">
+                <h3>Googleカレンダー連携</h3>
+                <p>活動を選ぶと、その使用時間をGoogleカレンダーに予定として登録します。カレンダー連動プログラムと同じAPIのURLを設定してください。</p>
+                <input type="password" id="apiUrlInput" placeholder="APIのURL" autocomplete="off">
+                <button type="submit" class="primary-btn">保存</button>
+                <p id="apiUrlStatus"></p>
+            </form>
+        </section>
+    </main>
+
+    <nav class="bottom-nav" id="bottomNav" hidden>
+        <button type="button" data-nav="home" class="nav-btn is-active">ホーム</button>
+        <button type="button" data-nav="history" class="nav-btn">履歴</button>
+        <button type="button" data-nav="activities" class="nav-btn">活動内容管理</button>
+    </nav>
+
+    <!-- SCR-007: 活動内容編集ダイアログ -->
+    <dialog id="activityDialog">
+        <form method="dialog" id="activityForm">
+            <h3 id="activityDialogTitle">活動を追加</h3>
+            <label class="field-label" for="activityNameInput">名前</label>
+            <input type="text" id="activityNameInput" maxlength="20" required placeholder="活動名">
+            <p class="field-label">色</p>
+            <div class="color-picker" id="activityColorPicker"></div>
+            <div class="dialog-actions">
+                <button type="button" id="activityDeleteBtn" class="danger-btn" hidden>削除</button>
+                <button type="button" id="activityCancelBtn">キャンセル</button>
+                <button type="submit" id="activitySaveBtn" class="primary-btn">保存</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script src="js/main.js" type="module"></script>
+</body>
+</html>
