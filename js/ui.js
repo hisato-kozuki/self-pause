@@ -69,8 +69,8 @@ export function setStorageWarning(message){
 }
 
 const MESSAGES = {
-    UNLOCK: "ゲームを始める準備をしましょう",
-    LOCK: "ゲームを終える準備をしましょう",
+    UNLOCK: "Now unlocking...",
+    LOCK: "Now locking...",
 };
 
 // 画面下部ナビは、カウントダウン中は誤操作防止のため隠す。

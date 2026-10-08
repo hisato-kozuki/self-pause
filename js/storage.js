@@ -2,16 +2,18 @@
 // docs/data-design.md の設計に、カレンダー連動プログラムとの互換用フィールド名を反映している。
 
 const STORAGE_KEY = "selfPause.appState";
-const SCHEMA_VERSION = 1;
-const DEFAULT_COUNTDOWN_SECONDS = 10;
+const SCHEMA_VERSION = 1.1;
+const LOCK_COUNTDOWN_SECONDS = 6;
+const UNLOCK_COUNTDOWN_SECONDS = 4;
 const DEFAULT_RETENTION_DAYS = 365;
 
 // 固定の活動項目。colorはカレンダー連動プログラムのcolorCodesに合わせた値。
 const DEFAULT_ACTIVITIES = [
     { id: "activity-game", name: "ゲーム", color: "7" },
     { id: "activity-tv", name: "テレビ", color: "9" },
-    { id: "activity-video", name: "動画視聴", color: "3" },
+    { id: "activity-video", name: "Youtube", color: "3" },
     { id: "activity-sns", name: "SNS", color: "6" },
+    { id: "activity-book", name: "読書", color: "2" },
     { id: "activity-other", name: "その他", color: "8" },
 ];
 
@@ -46,7 +48,10 @@ function createDefaultState(){
         history: [],
         settings: {
             historyRetentionDays: DEFAULT_RETENTION_DAYS,
-            countdownSeconds: DEFAULT_COUNTDOWN_SECONDS,
+            countdownSeconds: {
+                LOCK: LOCK_COUNTDOWN_SECONDS,
+                UNLOCK: UNLOCK_COUNTDOWN_SECONDS,
+            }
         },
     };
 }
@@ -66,9 +71,18 @@ function migrate(data){
     if(data.schemaVersion !== SCHEMA_VERSION){
         data.schemaVersion = SCHEMA_VERSION;
     }
-    if(!data.settings) data.settings = { historyRetentionDays: DEFAULT_RETENTION_DAYS, countdownSeconds: DEFAULT_COUNTDOWN_SECONDS };
+    if(data.activities.length !== 6) data.activities = DEFAULT_ACTIVITIES.map(a => ({
+        id: a.id,
+        name: a.name,
+        type: "default",
+        color: a.color,
+        isDeleted: false,
+        createdAt,
+        updatedAt: createdAt,
+    }))
+    if(!data.settings) data.settings = { historyRetentionDays: DEFAULT_RETENTION_DAYS, countdownSeconds: {LOCK: LOCK_COUNTDOWN_SECONDS, UNLOCK: UNLOCK_COUNTDOWN_SECONDS} };
     if(typeof data.settings.historyRetentionDays !== "number") data.settings.historyRetentionDays = DEFAULT_RETENTION_DAYS;
-    if(typeof data.settings.countdownSeconds !== "number") data.settings.countdownSeconds = DEFAULT_COUNTDOWN_SECONDS;
+    if(typeof data.settings.countdownSeconds !== "object") data.settings.countdownSeconds = {LOCK: LOCK_COUNTDOWN_SECONDS, UNLOCK: UNLOCK_COUNTDOWN_SECONDS};
     if(data.pendingHistory === undefined) data.pendingHistory = null;
     if(data.activeSession === undefined) data.activeSession = null;
     return data;

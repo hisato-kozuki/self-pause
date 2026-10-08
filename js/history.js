@@ -22,7 +22,7 @@ export function finalizeHistory(state, activity){
     const entry = {
         id: generateId("history"),
         activityId: activity.id,
-        title: "hhhhh"+Math.floor((new Date(pending.endedAt) - new Date(pending.startedAt))/1000).toString().padStart(5, "0"),
+        title: activity.id + ":" + Math.floor((new Date(pending.endedAt) - new Date(pending.startedAt))/1000).toString().padStart(5, "0"),
         description: "Self Pauseで記録された使用時間",
         date_start: pending.startedAt,
         date_end: pending.endedAt,

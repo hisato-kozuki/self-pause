@@ -60,7 +60,7 @@ body{
     display: flex;
     flex-direction: column;
     flex: 1;
-    gap: 1rem;
+    /* gap: 1rem; */
 }
 .screen[hidden]{ display: none; }
 
@@ -318,6 +318,7 @@ button:active{ transform: translateY(1px); }
 
 /* 扉の奥にあるカウント表示・アイコン・メッセージは、扉が開くと同時に拡大して現れる */
 .screen-countdown .reveal-target{
+    width: 100%;
     justify-self: center;
     align-self: center;
     transform: scale(0);
@@ -356,7 +357,8 @@ button:active{ transform: translateY(1px); }
     padding: 1rem;
 }
 .activity-picker-title{
-    margin: 0 0 0.7rem;
+    /* margin: 0 0 0.7rem; */
+    margin: 0;
     text-align: center;
     color: var(--text);
 }

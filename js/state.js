@@ -51,12 +51,12 @@ function persist(){ saveState(state); }
 export function getView(){
     if(countdown){
         const elapsed = Date.now() - countdown.startedAt;
-        const totalMs = state.settings.countdownSeconds * 1000;
+        const totalMs = state.settings.countdownSeconds[countdown.mode] * 1000;
         const remainingMs = Math.max(0, totalMs - elapsed);
         return {
             screen: countdown.mode === "UNLOCK" ? Screen.UNLOCK_COUNTDOWN : Screen.LOCK_COUNTDOWN,
             remainingSeconds: Math.ceil(remainingMs / 1000),
-            totalSeconds: state.settings.countdownSeconds,
+            totalSeconds: state.settings.countdownSeconds[countdown.mode],
             runId: countdown.startedAt,
             completing: false,
         };
@@ -67,7 +67,7 @@ export function getView(){
         return {
             screen: completingMode === "UNLOCK" ? Screen.UNLOCK_COUNTDOWN : Screen.LOCK_COUNTDOWN,
             remainingSeconds: 0,
-            totalSeconds: state.settings.countdownSeconds,
+            totalSeconds: state.settings.countdownSeconds[completingMode],
             runId: completingRunId,
             completing: true,
         };
@@ -117,7 +117,7 @@ export function onInterrupt(){
 function tick(){
     // console.log("tick")
     const elapsed = Date.now() - countdown.startedAt;
-    const totalMs = state.settings.countdownSeconds * 1000;
+    const totalMs = state.settings.countdownSeconds[countdown.mode] * 1000;
     if(elapsed >= totalMs){
         completeCountdown();
         return;
