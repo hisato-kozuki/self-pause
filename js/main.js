@@ -1,14 +1,15 @@
 import * as StateMachine from "./state.js";
-import { getStorageWarning, clearStorageWarning } from "./storage.js";
+import { getStorageWarning, clearStorageWarning, saveState, isValidTimerPresets, TIMER_MAX_MINUTES } from "./storage.js";
 import { listActivities, getSelectableActivities, addActivity, updateActivity, deleteActivity } from "./activities.js";
 import { markCalendarSynced, pruneExpiredHistory, deleteHistoryEntry, clearAllHistory, listHistoryByMonth, listAvailableMonths } from "./history.js";
 import * as ui from "./ui.js";
 import { getApiUrl, setApiUrl, postEvents, toCalendarEvent } from "./calendar-api.js";
+import * as notifier from "./notifier.js";
 
 const appState = StateMachine.init();
 if(pruneExpiredHistory(appState)){
     // 起動時に期限切れの履歴があれば削除して保存する。
-    import("./storage.js").then(({ saveState }) => saveState(appState));
+    saveState(appState);
 }
 ui.setStorageWarning(getStorageWarning());
 clearStorageWarning();
@@ -19,18 +20,32 @@ let lastView = StateMachine.getView();
 const now = new Date();
 let historyMonth = { year: now.getFullYear(), month: now.getMonth() + 1 };
 
+let navInterruptedCountdown = false; // 下部ナビでカウントダウン中に他画面へ移動したか
+
 let editingActivityId = null; // null = 新規追加、それ以外 = 編集対象のid
 let dialogColor = "8";
 
 // ===== 画面描画 =====
 
+function homeRenderOptions(){
+    return {
+        selectableActivities: getSelectableActivities(appState),
+        onSelectActivity: handleSelectActivity,
+        timerPresets: appState.settings.timerPresets,
+        onSelectTimer: handleSelectTimer,
+        timerButtonsEnabled: appState.settings.showTimerButtons,
+    };
+}
+
+function handleSelectTimer(minutes){
+    // 利用時間を選んだときに、終了通知のための許可を求める（クリック操作の中でのみ要求できる）。
+    if(minutes) notifier.requestPermission();
+    StateMachine.startUnlock(minutes);
+}
+
 function renderCurrentPage(){
-    console.log("renderCurrentPage", currentPage)
     if(currentPage === "home"){
-        ui.renderHome(lastView, {
-            selectableActivities: getSelectableActivities(appState),
-            onSelectActivity: handleSelectActivity,
-        });
+        ui.renderHome(lastView, homeRenderOptions());
     } else if(currentPage === "history"){
         renderHistoryPage();
     } else if(currentPage === "activities"){
@@ -45,6 +60,9 @@ function renderHistoryPage(){
 }
 
 function renderActivitiesPage(){
+    ui.setShowTimerButtonsField(appState.settings.showTimerButtons);
+    ui.renderNotificationStatus(notifier.getPermission());
+    ui.renderTimerSettings(appState.settings.timerPresets);
     ui.renderActivityList(listActivities(appState), { onOpenEdit: openEditActivityDialog });
 }
 
@@ -52,11 +70,18 @@ function renderActivitiesPage(){
 
 StateMachine.onChange(view => {
     lastView = view;
-    if(currentPage === "home") ui.renderHome(view, {
-        selectableActivities: getSelectableActivities(appState),
-        onSelectActivity: handleSelectActivity,
-    });
+    if(currentPage === "home"){
+        ui.renderHome(view, homeRenderOptions());
+    }
+    syncTimerNotifications(view);
 });
+
+// 利用時間が終わっても状態は変えず、通知（終了1分前に1回、終了後は10秒ごと）で知らせる。
+// 終了カウントダウンの実行中は、ユーザーが終了しようとしている最中なので通知を止める。
+function syncTimerNotifications(view){
+    const session = appState.currentState === "UNLOCKED" ? appState.activeSession : null;
+    notifier.update(session, { paused: isCountdownRunning(view) });
+}
 
 const ACTIVITY_CONFIRM_DELAY_MS = matchMedia("(prefers-reduced-motion: reduce)").matches ? 300 : 1200;
 
@@ -81,7 +106,7 @@ async function handleSelectActivity(activity){
     ui.flashActivityDone();
     if(!getApiUrl()){
         markCalendarSynced(appState, entry.id, false);
-        ui.setCalendarStatus("APIのURLが未設定のため、Googleカレンダーには登録していません（活動内容管理画面で設定できます）", "error");
+        ui.setCalendarStatus("APIのURLが未設定のため、Googleカレンダーには登録していません（設定画面で設定できます）", "error");
     } else {
         ui.setCalendarStatus("Googleカレンダーに登録中…");
         const result = await syncEntryToCalendar(entry.id);
@@ -92,9 +117,19 @@ async function handleSelectActivity(activity){
     // setTimeout(() => StateMachine.onForeground(), ACTIVITY_CONFIRM_DELAY_MS);
 }
 
-// ===== ナビゲーション（履歴・活動内容管理はブラウザ履歴に積む） =====
+// ===== ナビゲーション（履歴・設定はブラウザ履歴に積む） =====
+
+function isCountdownRunning(view){
+    return (view.screen === "UNLOCK_COUNTDOWN" || view.screen === "LOCK_COUNTDOWN") && !view.completing;
+}
 
 function navigateTo(page, { push = true } = {}){
+    const leavingHome = currentPage === "home" && page !== "home";
+    if(leavingHome && isCountdownRunning(lastView)){
+        // 画面外でカウントダウンが完了して状態が切り替わらないよう、ここで中断する。
+        StateMachine.onInterrupt();
+        navInterruptedCountdown = true;
+    }
     currentPage = page;
     ui.showPage(page === "history" || page === "activities" ? page : "home");
     if(page === "history"){
@@ -106,6 +141,14 @@ function navigateTo(page, { push = true } = {}){
                 historyMonth = { year: y, month: m };
             }
         }
+    }
+    if(page === "home" && navInterruptedCountdown){
+        // 中断していたカウントダウンは、ホームへ戻った時点で最初からやり直す。
+        navInterruptedCountdown = false;
+        StateMachine.onForeground();
+    } else if(page === "home" && lastView.screen === "TIMER_SELECTION" && !appState.settings.showTimerButtons){
+        // 設定画面でボタン表示をオフにして戻ってきた場合は、すぐに解禁カウントダウンを始める。
+        StateMachine.onForeground();
     }
     renderCurrentPage();
     if(push) history.pushState({ selfPausePage: page }, "", "#" + page);
@@ -143,13 +186,13 @@ document.getElementById("clearAllHistoryBtn").addEventListener("click", () => {
     if(!ok) return;
     const idsToRemove = new Set(entries.map(e => e.id));
     appState.history = appState.history.filter(h => !idsToRemove.has(h.id));
-    import("./storage.js").then(({ saveState }) => saveState(appState));
+    saveState(appState);
     renderHistoryPage();
 });
 
 async function handleRetrySync(id){
     if(!getApiUrl()){
-        alert("活動内容管理画面でAPIのURLを設定してください。");
+        alert("設定画面でAPIのURLを設定してください。");
         return;
     }
     const result = await syncEntryToCalendar(id);
@@ -162,11 +205,35 @@ function handleDeleteHistory(id){
     renderHistoryPage();
 }
 
-// 全履歴一括削除は活動内容管理画面ではなく、将来的な設定画面向けに残す最小実装として
+// 全履歴一括削除は設定画面ではなく、将来的な設定画面向けに残す最小実装として
 // clearAllHistoryも公開しておく（現状は上記の月単位削除から利用）。
 void clearAllHistory;
 
-// ===== 活動内容管理画面 =====
+// ===== 設定画面 =====
+
+document.getElementById("showTimerButtonsInput").addEventListener("change", () => {
+    appState.settings.showTimerButtons = ui.getShowTimerButtonsField();
+    saveState(appState);
+    ui.setTimerSettingsStatus(appState.settings.showTimerButtons
+        ? "次にアプリを開いたときからボタンを表示します"
+        : "次にアプリを開いたときからボタンを表示しません");
+});
+
+document.getElementById("notificationPermissionBtn").addEventListener("click", async () => {
+    ui.renderNotificationStatus(await notifier.requestPermission());
+});
+
+document.getElementById("timerSettingsForm").addEventListener("submit", event => {
+    event.preventDefault();
+    const values = ui.getTimerSettingsValues();
+    if(!isValidTimerPresets(values)){
+        ui.setTimerSettingsStatus(`1〜${TIMER_MAX_MINUTES}の整数（分）を入力してください`);
+        return;
+    }
+    appState.settings.timerPresets = values;
+    saveState(appState);
+    ui.setTimerSettingsStatus("保存しました");
+});
 
 ui.setApiUrlField(getApiUrl());
 document.getElementById("calendarSettingsForm").addEventListener("submit", event => {
@@ -243,6 +310,8 @@ window.addEventListener("pageshow", () => {
 });
 
 // ===== 初期化 =====
+
+notifier.registerServiceWorker();
 
 // 先にカウントダウン開始判定（FR-001, 再起動時の挙動）を行ってlastViewを確定させてから、
 // ホーム画面を表示する（そうしないと一瞬だけ誤った初期画面が見えてしまう）。

@@ -2,10 +2,14 @@
 // docs/data-design.md の設計に、カレンダー連動プログラムとの互換用フィールド名を反映している。
 
 const STORAGE_KEY = "selfPause.appState";
-const SCHEMA_VERSION = 1.1;
+const SCHEMA_VERSION = 1.3;
 const LOCK_COUNTDOWN_SECONDS = 6;
 const UNLOCK_COUNTDOWN_SECONDS = 4;
 const DEFAULT_RETENTION_DAYS = 365;
+// 解禁前に選ぶタイマーの選択肢（分）。6つ目のボタンは常に「制限なし」。
+const DEFAULT_TIMER_PRESETS = [5, 15, 30, 60, 120];
+const TIMER_PRESET_COUNT = DEFAULT_TIMER_PRESETS.length;
+export const TIMER_MAX_MINUTES = 1440;
 
 // 固定の活動項目。colorはカレンダー連動プログラムのcolorCodesに合わせた値。
 const DEFAULT_ACTIVITIES = [
@@ -28,6 +32,24 @@ function generateId(prefix){
     return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function createDefaultActivities(createdAt){
+    return DEFAULT_ACTIVITIES.map(a => ({
+        id: a.id,
+        name: a.name,
+        type: "default",
+        color: a.color,
+        isDeleted: false,
+        createdAt,
+        updatedAt: createdAt,
+    }));
+}
+
+export function isValidTimerPresets(presets){
+    return Array.isArray(presets)
+        && presets.length === TIMER_PRESET_COUNT
+        && presets.every(m => Number.isInteger(m) && m >= 1 && m <= TIMER_MAX_MINUTES);
+}
+
 function createDefaultState(){
     const createdAt = nowIso();
     return {
@@ -36,22 +58,17 @@ function createDefaultState(){
         lastStateChangedAt: createdAt,
         activeSession: null,
         pendingHistory: null,
-        activities: DEFAULT_ACTIVITIES.map(a => ({
-            id: a.id,
-            name: a.name,
-            type: "default",
-            color: a.color,
-            isDeleted: false,
-            createdAt,
-            updatedAt: createdAt,
-        })),
+        activities: createDefaultActivities(createdAt),
         history: [],
         settings: {
             historyRetentionDays: DEFAULT_RETENTION_DAYS,
             countdownSeconds: {
                 LOCK: LOCK_COUNTDOWN_SECONDS,
                 UNLOCK: UNLOCK_COUNTDOWN_SECONDS,
-            }
+            },
+            timerPresets: [...DEFAULT_TIMER_PRESETS],
+            // 既定では起動時にボタンを表示せず、すぐに解禁カウントダウンを始める。
+            showTimerButtons: false,
         },
     };
 }
@@ -66,25 +83,21 @@ function isValidState(data){
         && data.settings && typeof data.settings === "object";
 }
 
-// 将来スキーマが変わった場合はここでバージョンごとの変換を追加する。現状はv1のみ。
+// スキーマバージョンごとの変換。古いバージョンから順に適用する。
 function migrate(data){
-    if(data.schemaVersion !== SCHEMA_VERSION){
-        data.schemaVersion = SCHEMA_VERSION;
+    if(data.schemaVersion < 1.1){
+        // v1.1で固定活動項目の名称・色を変更したため、既定の6項目に置き換える。
+        data.activities = createDefaultActivities(nowIso());
     }
-    if(data.activities.length !== 6) data.activities = DEFAULT_ACTIVITIES.map(a => ({
-        id: a.id,
-        name: a.name,
-        type: "default",
-        color: a.color,
-        isDeleted: false,
-        createdAt,
-        updatedAt: createdAt,
-    }))
-    if(!data.settings) data.settings = { historyRetentionDays: DEFAULT_RETENTION_DAYS, countdownSeconds: {LOCK: LOCK_COUNTDOWN_SECONDS, UNLOCK: UNLOCK_COUNTDOWN_SECONDS} };
     if(typeof data.settings.historyRetentionDays !== "number") data.settings.historyRetentionDays = DEFAULT_RETENTION_DAYS;
-    if(typeof data.settings.countdownSeconds !== "object") data.settings.countdownSeconds = {LOCK: LOCK_COUNTDOWN_SECONDS, UNLOCK: UNLOCK_COUNTDOWN_SECONDS};
+    if(!data.settings.countdownSeconds || typeof data.settings.countdownSeconds !== "object") data.settings.countdownSeconds = {LOCK: LOCK_COUNTDOWN_SECONDS, UNLOCK: UNLOCK_COUNTDOWN_SECONDS};
+    // v1.2: タイマーの選択肢を追加
+    if(!isValidTimerPresets(data.settings.timerPresets)) data.settings.timerPresets = [...DEFAULT_TIMER_PRESETS];
+    // v1.3: 起動時のタイマーボタン表示（既定はオフ）
+    if(typeof data.settings.showTimerButtons !== "boolean") data.settings.showTimerButtons = false;
     if(data.pendingHistory === undefined) data.pendingHistory = null;
     if(data.activeSession === undefined) data.activeSession = null;
+    data.schemaVersion = SCHEMA_VERSION;
     return data;
 }
 
@@ -134,4 +147,4 @@ export function saveState(state){
 export function getStorageWarning(){ return storageWarning; }
 export function clearStorageWarning(){ storageWarning = null; }
 export function isoNow(){ return nowIso(); }
-export { generateId, STORAGE_KEY, SCHEMA_VERSION };
+export { generateId, STORAGE_KEY, SCHEMA_VERSION, DEFAULT_ACTIVITIES };
