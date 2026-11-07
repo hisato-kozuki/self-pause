@@ -13,6 +13,12 @@
 // 適用すると、活動を選ばないまま次のセッションが始められてしまう。
 // そのため、pendingHistoryが残っている間は活動選択画面（SCR-004）を優先表示し、
 // 選択が完了してから解禁カウントダウンを開始する。
+//
+// 設定でタイマーボタンを有効にしている場合は、解禁カウントダウンを自動では始めず、
+// 前面復帰時にまずタイマー選択画面（TIMER_SELECTION）を表示し、利用時間（または制限なし）が
+// 選ばれた時点で開始する。無効（既定）の場合は従来どおり、すぐに解禁カウントダウンを始める。
+// 選んだ利用時間はUNLOCKEDへの移行完了時刻から計り、経過するとビューのtimerExpiredがtrueになる。
+// 利用時間が終わっても状態は変えない（通知はmain.js/notifier.jsが担当する）。
 import { loadState, saveState, isoNow } from "./storage.js";
 import { finalizeHistory } from "./history.js";
 
@@ -21,14 +27,17 @@ export const Screen = {
     UNLOCKED: "UNLOCKED",
     LOCK_COUNTDOWN: "LOCK_COUNTDOWN",
     ACTIVITY_SELECTION: "ACTIVITY_SELECTION",
-    LOCKED_IDLE: "LOCKED_IDLE", // 前面復帰待ちの一瞬だけ通過しうる保険用の状態
+    TIMER_SELECTION: "TIMER_SELECTION", // 解禁前に利用時間を選ぶ（扉は閉じたまま）
+    LOCKED_IDLE: "LOCKED_IDLE", // 活動記録後、次の前面復帰を待つ状態
 };
 
 // 完了アニメーションの再生時間。prefers-reduced-motionの場合は短縮する。
 const ANIM_MS = matchMedia("(prefers-reduced-motion: reduce)").matches ? 60 : 1300;
 
 let state = null;
-let countdown = null; // { mode: "UNLOCK" | "LOCK", startedAt: number(ms) }
+let countdown = null; // { mode: "UNLOCK" | "LOCK", startedAt: number(ms), timerMinutes?: number | null }
+let awaitingTimer = false; // 前面復帰後、解禁のためのタイマー選択待ちかどうか
+let sessionTimerHandle = null;
 let completingMode = null;
 let completingRunId = null; // 完了アニメーション再生中は次画面への切り替えを保留する
 let tickHandle = null;
@@ -36,7 +45,24 @@ let animationTimeoutHandle = null;
 const listeners = [];
 
 export function onChange(fn){ listeners.push(fn); }
-function emit(){ const view = getView(); for(const fn of listeners) fn(view); }
+function emit(){
+    syncSessionTimer();
+    const view = getView();
+    for(const fn of listeners) fn(view);
+}
+
+// 使用可能状態でタイマーが設定されている間だけ、残り時間表示のため1秒ごとに再描画する。
+function syncSessionTimer(){
+    const needed = !countdown && !completingMode
+        && state.currentState === "UNLOCKED"
+        && !!(state.activeSession && state.activeSession.timerEndsAt);
+    if(needed && !sessionTimerHandle){
+        sessionTimerHandle = setInterval(emit, 1000);
+    } else if(!needed && sessionTimerHandle){
+        clearInterval(sessionTimerHandle);
+        sessionTimerHandle = null;
+    }
+}
 
 export function init(){
     state = loadState();
@@ -76,7 +102,21 @@ export function getView(){
         return { screen: Screen.ACTIVITY_SELECTION, durationSeconds: state.pendingHistory.durationSeconds };
     }
     if(state.currentState === "UNLOCKED"){
-        return { screen: Screen.UNLOCKED };
+        const session = state.activeSession || {};
+        const endsAtMs = session.timerEndsAt ? new Date(session.timerEndsAt).getTime() : NaN;
+        if(Number.isNaN(endsAtMs)){
+            return { screen: Screen.UNLOCKED, timerEndsAt: null, timerRemainingSeconds: null, timerExpired: false };
+        }
+        const remainingMs = Math.max(0, endsAtMs - Date.now());
+        return {
+            screen: Screen.UNLOCKED,
+            timerEndsAt: session.timerEndsAt,
+            timerRemainingSeconds: Math.ceil(remainingMs / 1000),
+            timerExpired: remainingMs <= 0,
+        };
+    }
+    if(awaitingTimer){
+        return { screen: Screen.TIMER_SELECTION };
     }
     return { screen: Screen.LOCKED_IDLE };
 }
@@ -91,19 +131,41 @@ function clearAnimation(){
     if(animationTimeoutHandle){ clearTimeout(animationTimeoutHandle); animationTimeoutHandle = null; }
 }
 
-// 前面復帰・初回起動時に、必要ならカウントダウンを10秒から開始する。
+function startCountdown(mode, extra = {}){
+    countdown = { mode, startedAt: Date.now(), ...extra };
+    tickHandle = setInterval(tick, 100);
+    emit();
+}
+
+// 前面復帰・初回起動時の処理。
+// - 使用可能状態なら終了カウントダウンを最初から開始する。
+// - 使用禁止状態なら、タイマーボタンが有効ならタイマー選択画面を表示し、
+//   無効なら解禁カウントダウンを最初から開始する。
 export function onForeground(){
-    // console.log("onForeground")
     stopCountdown();
     clearAnimation();
     if(state.currentState === "LOCKED" && state.pendingHistory){
         emit(); // 活動選択画面を表示するだけで、カウントダウンは開始しない。
         return;
     }
-    const mode = state.currentState === "LOCKED" ? "UNLOCK" : "LOCK";
-    countdown = { mode, startedAt: Date.now() };
-    tickHandle = setInterval(tick, 100);
-    emit();
+    if(state.currentState === "LOCKED"){
+        if(state.settings.showTimerButtons){
+            awaitingTimer = true;
+            emit();
+        } else {
+            awaitingTimer = false;
+            startCountdown("UNLOCK", { timerMinutes: null });
+        }
+        return;
+    }
+    startCountdown("LOCK");
+}
+
+// タイマー選択画面でボタンが押されたときに呼ぶ。minutes: 数値（分）またはnull（制限なし）。
+export function startUnlock(minutes){
+    if(state.currentState !== "LOCKED" || state.pendingHistory || countdown || completingMode) return;
+    const timerMinutes = Number.isFinite(minutes) && minutes > 0 ? minutes : null;
+    startCountdown("UNLOCK", { timerMinutes });
 }
 
 // バックグラウンド移行・戻る操作: カウントダウンを破棄するだけで状態は変えない。
@@ -127,6 +189,7 @@ function tick(){
 
 function completeCountdown(){
     const mode = countdown.mode;
+    const timerMinutes = countdown.timerMinutes || null;
     completingRunId = countdown.startedAt;
     stopCountdown();
     const now = isoNow();
@@ -134,8 +197,13 @@ function completeCountdown(){
     if(mode === "UNLOCK"){
         state.currentState = "UNLOCKED";
         state.lastStateChangedAt = now;
-        state.activeSession = { startedAt: now };
+        state.activeSession = {
+            startedAt: now,
+            timerMinutes,
+            timerEndsAt: timerMinutes ? new Date(Date.parse(now) + timerMinutes * 60000).toISOString() : null,
+        };
         state.pendingHistory = null;
+        awaitingTimer = false;
     } else {
         const startedAt = state.activeSession ? state.activeSession.startedAt : now;
         const durationSeconds = Math.max(0, Math.round((new Date(now) - new Date(startedAt)) / 1000));

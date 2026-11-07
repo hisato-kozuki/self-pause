@@ -36,6 +36,8 @@
             <div class="door-panel door-bottom" id="doorBottom"></div>
             <div class="door-panel door-left" id="doorLeft"></div>
             <div class="door-panel door-right" id="doorRight"></div>
+            <!-- 解禁前のタイマー選択（閉じた扉の手前に画面を6等分して表示する） -->
+            <div class="timer-grid" id="timerGrid" role="group" aria-label="利用時間を選んで解禁する" hidden></div>
         </section>
 
         <!-- SCR-002: 使用可能状態画面 -->
@@ -44,6 +46,7 @@
                 <p class="state-label state-label-unlocked">
                     <span class="state-dot" aria-hidden="true"></span>使用可能
                 </p>
+                <p class="timer-remaining" id="timerRemaining"></p>
             </header>
             <div class="door-stage">
                 <div class="console-icon" data-sealed="false">
@@ -100,16 +103,33 @@
             </div>
         </section>
 
-        <!-- SCR-006: 活動内容管理画面 -->
+        <!-- SCR-006: 設定画面（タイマー・活動内容・カレンダー連携） -->
         <section class="screen screen-activities" data-screen="activities" hidden>
             <header class="subscreen-header">
                 <button type="button" class="nav-back" data-nav="home">← ホーム</button>
-                <h2>活動内容管理</h2>
+                <h2>設定</h2>
             </header>
+            <form class="settings-card" id="timerSettingsForm">
+                <h3>利用時間タイマー</h3>
+                <label class="toggle-row">
+                    <input type="checkbox" id="showTimerButtonsInput">
+                    起動時に利用時間のボタンを表示する
+                </label>
+                <p>オンにすると、解禁前に利用時間を選ぶボタンが表示されます。終了1分前と終了後（10秒ごと）に通知します。下の数値は各ボタンの利用時間（分）で、6つ目のボタンは「制限なし」で固定です。</p>
+                <div class="notification-row">
+                    <span id="notificationStatus"></span>
+                    <button type="button" id="notificationPermissionBtn">通知を許可</button>
+                </div>
+                <div class="timer-settings-fields" id="timerSettingsFields"></div>
+                <button type="submit" class="primary-btn">保存</button>
+                <p id="timerSettingsStatus" role="status"></p>
+            </form>
+
+            <h3 class="settings-section-title">活動内容</h3>
             <ul class="activity-list" id="activityList"></ul>
             <button type="button" id="addActivityBtn" class="primary-btn">＋ 活動を追加</button>
 
-            <form class="calendar-settings" id="calendarSettingsForm">
+            <form class="settings-card" id="calendarSettingsForm">
                 <h3>Googleカレンダー連携</h3>
                 <p>活動を選ぶと、その使用時間をGoogleカレンダーに予定として登録します。カレンダー連動プログラムと同じAPIのURLを設定してください。</p>
                 <input type="password" id="apiUrlInput" placeholder="APIのURL" autocomplete="off">
@@ -122,7 +142,7 @@
     <nav class="bottom-nav" id="bottomNav" hidden>
         <button type="button" data-nav="home" class="nav-btn is-active">ホーム</button>
         <button type="button" data-nav="history" class="nav-btn">履歴</button>
-        <button type="button" data-nav="activities" class="nav-btn">活動内容管理</button>
+        <button type="button" data-nav="activities" class="nav-btn">設定</button>
     </nav>
 
     <!-- SCR-007: 活動内容編集ダイアログ -->
