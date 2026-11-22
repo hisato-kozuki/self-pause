@@ -5,6 +5,8 @@ import { markCalendarSynced, pruneExpiredHistory, deleteHistoryEntry, clearAllHi
 import * as ui from "./ui.js";
 import { getApiUrl, setApiUrl, postEvents, toCalendarEvent } from "./calendar-api.js";
 import * as notifier from "./notifier.js";
+import { computeDailyUsage, startOfDay, addDays, toDateKey, fromDateKey, MAX_RANGE_DAYS } from "./usage-stats.js";
+import { renderUsageChart } from "./usage-chart.js";
 
 const appState = StateMachine.init();
 if(pruneExpiredHistory(appState)){
@@ -19,6 +21,10 @@ let lastView = StateMachine.getView();
 
 const now = new Date();
 let historyMonth = { year: now.getFullYear(), month: now.getMonth() + 1 };
+
+// 使用時間グラフの表示期間（両端の日を含む）。既定は今日までの7日間。
+const DEFAULT_RANGE_DAYS = 7;
+let usageRange = rangeEndingToday(DEFAULT_RANGE_DAYS);
 
 let navInterruptedCountdown = false; // 下部ナビでカウントダウン中に他画面へ移動したか
 
@@ -53,7 +59,70 @@ function renderCurrentPage(){
     }
 }
 
+function rangeEndingToday(days){
+    const end = startOfDay(new Date());
+    return { start: addDays(end, -(days - 1)), end, presetDays: days };
+}
+
+const usageEls = {
+    chart: document.getElementById("usageChart"),
+    legend: document.getElementById("usageLegend"),
+    summary: document.getElementById("usageSummary"),
+    tooltip: document.getElementById("usageTooltip"),
+    startInput: document.getElementById("usageStartInput"),
+    endInput: document.getElementById("usageEndInput"),
+    error: document.getElementById("usageRangeError"),
+    presets: document.querySelectorAll("[data-range-days]"),
+};
+
+function renderUsagePanel(){
+    usageEls.startInput.value = toDateKey(usageRange.start);
+    usageEls.endInput.value = toDateKey(usageRange.end);
+    for(const btn of usageEls.presets){
+        btn.classList.toggle("is-active", Number(btn.dataset.rangeDays) === usageRange.presetDays);
+    }
+    const data = computeDailyUsage(appState.history, appState.activities, usageRange.start, usageRange.end);
+    renderUsageChart(usageEls, data);
+}
+
+for(const btn of usageEls.presets){
+    btn.addEventListener("click", () => {
+        usageRange = rangeEndingToday(Number(btn.dataset.rangeDays));
+        usageEls.error.hidden = true;
+        renderUsagePanel();
+    });
+}
+
+function handleRangeInput(){
+    const start = fromDateKey(usageEls.startInput.value);
+    const end = fromDateKey(usageEls.endInput.value);
+    let message = "";
+    if(!start || !end) message = "開始日と終了日を入力してください";
+    else if(start > end) message = "開始日は終了日以前の日付にしてください";
+    else if(Math.round((end - start) / 86400000) + 1 > MAX_RANGE_DAYS) message = `期間は${MAX_RANGE_DAYS}日以内にしてください`;
+    usageEls.error.textContent = message;
+    usageEls.error.hidden = !message;
+    if(message) return;
+    usageRange = { start, end, presetDays: null };
+    renderUsagePanel();
+}
+usageEls.startInput.addEventListener("change", handleRangeInput);
+usageEls.endInput.addEventListener("change", handleRangeInput);
+
+// 画面幅が変わったら棒の幅を計算し直す
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if(currentPage === "history") renderUsagePanel(); }, 150);
+});
+
+// グラフの外をタップしたら詳細表示を閉じる
+document.addEventListener("click", event => {
+    if(!event.target.closest(".usage-chart")) usageEls.tooltip.hidden = true;
+});
+
 function renderHistoryPage(){
+    renderUsagePanel();
     ui.renderHistoryMonth(historyMonth.year, historyMonth.month);
     const entries = listHistoryByMonth(appState, historyMonth.year, historyMonth.month);
     ui.renderHistoryList(entries, { onDelete: handleDeleteHistory, onRetry: handleRetrySync });

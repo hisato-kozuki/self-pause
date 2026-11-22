@@ -452,6 +452,81 @@ button:active{ transform: translateY(1px); }
 }
 
 /* ===== 履歴画面 ===== */
+.screen-history{ gap: 0.8rem; }
+
+/* 1日あたりの使用時間グラフ */
+.usage-card{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 0.9rem;
+    padding: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+.usage-card h3{ margin: 0; font-size: 1rem; }
+.usage-range-presets{ display: flex; gap: 0.4rem; }
+.usage-range-presets button{ flex: 1; padding: 0.4rem 0; font-size: 0.85rem; }
+.usage-range-presets button.is-active{ background: var(--accent); border-color: var(--accent); color: #fff; }
+.usage-range-inputs{
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+}
+.usage-range-inputs label{ flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.usage-range-inputs input{
+    font: inherit;
+    font-size: 0.9rem;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--metal-1);
+    border-radius: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    min-width: 0;
+    width: 100%;
+}
+.usage-range-inputs > span{ align-self: flex-end; padding-bottom: 0.5rem; }
+.usage-range-error{ margin: 0; color: var(--danger); font-size: 0.8rem; }
+.usage-range-error[hidden]{ display: none; }
+.usage-summary{ margin: 0; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.usage-chart-wrap{ position: relative; }
+.usage-chart{ width: 100%; overflow: hidden; }
+.usage-chart svg{ display: block; }
+.chart-grid{ stroke: var(--line); stroke-width: 1; }
+.chart-baseline{ stroke: var(--text-dim); stroke-width: 1; }
+.chart-axis-label{ fill: var(--text-dim); font-size: 10px; font-variant-numeric: tabular-nums; }
+.chart-hit{ fill: transparent; cursor: pointer; }
+.chart-hit:hover{ fill: rgba(30, 40, 70, 0.06); }
+.chart-tooltip{
+    position: absolute;
+    z-index: 5;
+    pointer-events: none;
+    background: var(--panel);
+    border: 1px solid var(--metal-1);
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(20, 24, 36, 0.18);
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+.chart-tooltip[hidden]{ display: none; }
+.chart-tooltip p{ margin: 0; display: flex; align-items: center; gap: 0.35rem; }
+.chart-tooltip .chart-tooltip-head{ font-weight: 600; margin-bottom: 0.15rem; }
+.chart-legend{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.25rem 0.8rem;
+    font-size: 0.85rem;
+}
+.chart-legend li{ display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.chart-legend-swatch{ width: 0.75rem; height: 0.75rem; border-radius: 0.2rem; flex: none; }
+.chart-legend-name{ flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chart-legend-value{ color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .month-switcher{
     display: flex;
     align-items: center;
