@@ -91,6 +91,27 @@
                 <button type="button" class="nav-back" data-nav="home">← ホーム</button>
                 <h2>活動履歴</h2>
             </header>
+            <section class="usage-card" aria-labelledby="usageTitle">
+                <h3 id="usageTitle">1日あたりの使用時間</h3>
+                <div class="usage-range-presets" role="group" aria-label="表示期間">
+                    <button type="button" data-range-days="7">7日</button>
+                    <button type="button" data-range-days="14">14日</button>
+                    <button type="button" data-range-days="30">30日</button>
+                    <button type="button" data-range-days="90">90日</button>
+                </div>
+                <div class="usage-range-inputs">
+                    <label>開始<input type="date" id="usageStartInput"></label>
+                    <span aria-hidden="true">〜</span>
+                    <label>終了<input type="date" id="usageEndInput"></label>
+                </div>
+                <p class="usage-range-error" id="usageRangeError" role="alert" hidden></p>
+                <p class="usage-summary" id="usageSummary"></p>
+                <div class="usage-chart-wrap">
+                    <div class="usage-chart" id="usageChart"></div>
+                    <div class="chart-tooltip" id="usageTooltip" hidden></div>
+                </div>
+                <ul class="chart-legend" id="usageLegend"></ul>
+            </section>
             <div class="month-switcher">
                 <button type="button" id="prevMonthBtn" aria-label="前の月">◀</button>
                 <span id="currentMonthLabel"></span>
